@@ -9,6 +9,12 @@ import (
 	exchange "github.com/preichenberger/go-coinbase-exchange"
 	"math"
 	"time"
+
+	influx "github.com/influxdata/influxdb/client/v2"
+)
+
+const (
+	database = "trader"
 )
 
 type LimitOrderEntry struct {
@@ -129,7 +135,71 @@ func main() {
 
 	lastSeq := 0
 
+	iClient, err := influx.NewHTTPClient(influx.HTTPConfig{
+		Addr: "http://localhost:8086"})
+	if err != nil {
+		panic(err)
+	}
+
+	ticker := time.NewTicker(5 * time.Second)
+	quit := make(chan struct{})
 	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				secret := os.Getenv("COINBASE_SECRET")
+				key := os.Getenv("COINBASE_KEY")
+				passphrase := os.Getenv("COINBASE_PASSPHRASE")
+
+				client := exchange.NewClient(secret, key, passphrase)
+				bp, err := influx.NewBatchPoints(influx.BatchPointsConfig{
+					Database:  database,
+					Precision: "s",
+				})
+				if err != nil {
+					panic(err)
+				}
+				accounts, err := client.GetAccounts()
+				if err != nil {
+					panic(err.Error())
+				}
+				for _, a := range accounts {
+					tags := map[string]string{
+						"id": a.Id,
+						"currency": a.Currency,
+					}
+					fields := map[string]interface{}{
+						"value": a.Balance,
+					}
+					pt, err := influx.NewPoint("balance", tags, fields, time.Now())
+					if err != nil {
+						panic(err)
+					}
+					bp.AddPoint(pt)
+				//	cursor := client.ListAccountLedger(a.Id)
+  				//	var ledger []exchange.LedgerEntry
+				//
+				//	for cursor.HasMore {
+				//		if err := cursor.NextPage(&ledger); err != nil {
+				//			panic(err.Error())
+				//		}
+
+//						for _, e := range ledger {
+//							fmt.Println(e.Amount)
+//						}
+//					}
+				}
+				iClient.Write(bp)
+
+				// dr stuff
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+
+	f := func() {
 		secret := os.Getenv("COINBASE_SECRET")
 		key := os.Getenv("COINBASE_KEY")
 		passphrase := os.Getenv("COINBASE_PASSPHRASE")
@@ -142,11 +212,11 @@ func main() {
 			currentMaxBuy := o.BuyEntries.Max().(*PriceEntry).Price
 			currentMinSell := o.SellEntries.Min().(*PriceEntry).Price
 
-			buyPrice := RoundPlus(currentMaxBuy-0.15, 2)
+			buyPrice := RoundPlus(currentMaxBuy-1.80, 2)
 
 			fmt.Printf("buy Price: %v", buyPrice)
 
-			sellPrice := RoundPlus(currentMinSell+0.15, 2)
+			sellPrice := RoundPlus(currentMinSell+1.80, 2)
 
 			fmt.Println("sell price: %v", sellPrice)
 
@@ -184,7 +254,10 @@ func main() {
 			}
 
 		}
-	}()
+	}
+	//go f()
+	fmt.Printf("%v", f)
+
 
 	for n := range socketMessages {
 		if n.Sequence <= ob.Sequence {
@@ -214,7 +287,24 @@ func main() {
 			//println(n.OrderId)
 			o.DeleteOrder(n.OrderId)
 		case "match":
-			//fmt.Printf("Sale at %v\n", n)
+			bp, err := influx.NewBatchPoints(influx.BatchPointsConfig{
+				Database:  database,
+				Precision: "s",
+			})
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("Sale at %v\n", n)
+			tags := map[string]string{}
+			fields := map[string]interface{}{
+				"value": n.Price,
+			}
+			pt, err := influx.NewPoint("price", tags, fields, time.Now())
+			if err != nil {
+				panic(err)
+			}
+			bp.AddPoint(pt)
+			iClient.Write(bp)
 		default:
 			v, _ := json.Marshal(n)
 			fmt.Printf("%v\n", string(v))
@@ -223,4 +313,5 @@ func main() {
 		lastSeq = n.Sequence
 	}
 
+	close(quit)
 }

@@ -51,4 +51,3 @@ func GetEventMessages() <-chan *exchange.Message {
 	}()
 	return socketMessages
 }
-

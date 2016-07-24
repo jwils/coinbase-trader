@@ -7,3 +7,5 @@ import:
 - package: golang.org/x/net
   subpackages:
   - websocket
+- package: github.com/influxdata/influxdb
+  version: ^1.0.0-beta3

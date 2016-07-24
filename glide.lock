@@ -1,5 +1,5 @@
-hash: 159a9928a947da3be7a6b32b17b4536b56808b62d665d59a2f0dbb51e5a2a083
-updated: 2016-06-28T11:36:55.957476639-07:00
+hash: 7c02d74b318fd5b425ea777bea34d727dd2ca3445e6b370f5bfd40e251096acf
+updated: 2016-07-24T21:02:21.114102401Z
 imports:
 - name: github.com/bitfinexcom/bitfinex-api-go
   version: 41da119d260ed8cca04593dc3390b5ac9e5c4398
@@ -7,10 +7,16 @@ imports:
   version: a68708917c6a4f06314ab4e52493cc61359c9d42
 - name: github.com/HuKeping/rbtree
   version: e54999f93afbef359a3fab8ed943633baafbbd8e
+- name: github.com/influxdata/influxdb
+  version: 30efa2d922babde5ccbdf09960e510c0de5e0bcb
+  subpackages:
+  - client/v2
+  - models
+  - pkg/escape
 - name: github.com/preichenberger/go-coinbase-exchange
   version: bb9723c8f1a94d7342da68c73aca7a30d99a694d
 - name: golang.org/x/net
   version: 04557861f124410b768b1ba5bb3a91b705afbfc6
   subpackages:
   - websocket
-devImports: []
+testImports: []
