@@ -4,6 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/HuKeping/rbtree"
+	"os"
+
+	exchange "github.com/preichenberger/go-coinbase-exchange"
+	"math"
+	"time"
 )
 
 type LimitOrderEntry struct {
@@ -95,6 +100,15 @@ func Print(item rbtree.Item) bool {
 	return true
 }
 
+func Round(f float64) float64 {
+	return math.Floor(f + .5)
+}
+
+func RoundPlus(f float64, places int) float64 {
+	shift := math.Pow(10, float64(places))
+	return Round(f*shift) / shift
+}
+
 func main() {
 	o := NewOrderBook()
 	socketMessages := GetEventMessages()
@@ -110,10 +124,68 @@ func main() {
 		o.AddSell(&LimitOrderEntry{entry.OrderId, entry.Price, entry.Size, "sell"})
 	}
 
-	fmt.Printf("%d\n", o.BuyEntries)
+	//fmt.Printf("%d\n", o.BuyEntries)
 	o.BuyEntries.Ascend(&PriceEntry{380, nil}, Print)
 
 	lastSeq := 0
+
+	go func() {
+		secret := os.Getenv("COINBASE_SECRET")
+		key := os.Getenv("COINBASE_KEY")
+		passphrase := os.Getenv("COINBASE_PASSPHRASE")
+
+		client := exchange.NewClient(secret, key, passphrase)
+
+		time.Sleep(time.Second * 5)
+		for {
+			fmt.Println("KEY:" + key)
+			currentMaxBuy := o.BuyEntries.Max().(*PriceEntry).Price
+			currentMinSell := o.SellEntries.Min().(*PriceEntry).Price
+
+			buyPrice := RoundPlus(currentMaxBuy-0.15, 2)
+
+			fmt.Printf("buy Price: %v", buyPrice)
+
+			sellPrice := RoundPlus(currentMinSell+0.15, 2)
+
+			fmt.Println("sell price: %v", sellPrice)
+
+			o1, err := client.CreateOrder(&exchange.Order{
+				Price:     buyPrice,
+				Size:      0.01,
+				Side:      "buy",
+				ProductId: "BTC-USD",
+			})
+
+			if err != nil {
+				panic(err)
+			}
+
+			o2, err := client.CreateOrder(&exchange.Order{
+				Price:     sellPrice,
+				Size:      0.01,
+				Side:      "sell",
+				ProductId: "BTC-USD",
+			})
+
+			if err != nil {
+				panic(err)
+			}
+
+			time.Sleep(time.Second * 15)
+
+			err = client.CancelOrder(o1.Id)
+			if err != nil && err.Error() != "Order already done" {
+				panic(err)
+			}
+			err = client.CancelOrder(o2.Id)
+			if err != nil && err.Error() != "Order already done" {
+				panic(err)
+			}
+
+		}
+	}()
+
 	for n := range socketMessages {
 		if n.Sequence <= ob.Sequence {
 			lastSeq = n.Sequence
@@ -134,14 +206,15 @@ func main() {
 			} else {
 				//println(n.OrderId)
 			}
-			currentMaxBuy := o.BuyEntries.Max().(*PriceEntry).Price
-			currentMinSell := o.SellEntries.Min().(*PriceEntry).Price
-			fmt.Printf("Mid price: %0.2f\n", (currentMaxBuy+currentMinSell)/2)
+			//currentMaxBuy := o.BuyEntries.Max().(*PriceEntry).Price
+			//currentMinSell := o.SellEntries.Min().(*PriceEntry).Price
+			//fmt.Printf("Mid price: %0.2f\n", (currentMaxBuy+currentMinSell)/2)
+
 		case "done":
 			//println(n.OrderId)
 			o.DeleteOrder(n.OrderId)
 		case "match":
-			fmt.Printf("Sale at %v\n", n)
+			//fmt.Printf("Sale at %v\n", n)
 		default:
 			v, _ := json.Marshal(n)
 			fmt.Printf("%v\n", string(v))
