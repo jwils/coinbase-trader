@@ -27,15 +27,14 @@ func main() {
 	msgs := GetEventMessages()
 	go func() {
 		for {
-			var m exchange.Message
 			bp, err := influx.NewBatchPoints(influx.BatchPointsConfig{
 				Database:  database,
 				Precision: "s",
 			})
 
-			lastTradePrice := 0
+			lastTradePrice := 0.0
 			select {
-			case m <- msgs:
+			case m := <- msgs:
 				tags := map[string]string{
 					"type": m.Type,
 				}
@@ -43,7 +42,7 @@ func main() {
 					"value": m.Price,
 				}
 				lastTradePrice = m.Price
-				pt, err := influx.NewPoint("trades", tags, fields, m.Time)
+				pt, err := influx.NewPoint("trades", tags, fields, m.Time.Time())
 				bp.AddPoint(pt)
 				if err != nil {
 					panic(err)
