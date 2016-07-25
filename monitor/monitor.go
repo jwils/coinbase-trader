@@ -64,6 +64,7 @@ func main() {
 				if err != nil {
 					panic(err.Error())
 				}
+				total := 0.0
 				for _, a := range accounts {
 					tags := map[string]string{
 						"id":       a.Id,
@@ -72,8 +73,12 @@ func main() {
 					fields := map[string]interface{}{
 						"value": a.Balance,
 					}
+					if a.Currency == "USD" {
+						total += a.Balance
+					}
 					if a.Currency == "BTC" {
 						fields["usd"] = a.Balance * lastTradePrice
+						total += a.Balance * lastTradePrice
 					}
 					pt, err := influx.NewPoint("balance", tags, fields, time.Now())
 
@@ -83,6 +88,20 @@ func main() {
 					bp.AddPoint(pt)
 
 				}
+				tags := map[string]string{
+					"id": "all",
+					"currency": "sum",
+				}
+				fields := map[string]interface{}{
+					"value": total,
+				}
+				pt, err := influx.NewPoint("balance", tags, fields, time.Now())
+
+				if err != nil {
+					panic(err)
+				}
+				bp.AddPoint(pt)
+
 				iClient.Write(bp)
 				bp, err = influx.NewBatchPoints(influx.BatchPointsConfig{
 					Database:  database,
