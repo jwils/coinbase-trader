@@ -1,17 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
+	ws "github.com/gorilla/websocket"
 	influx "github.com/influxdata/influxdb/client/v2"
 	exchange "github.com/preichenberger/go-coinbase-exchange"
-	ws "github.com/gorilla/websocket"
 )
 
-
 const (
-	database = "trader"
+	database              = "trader"
 	coinbaseWebsocketHost = "wss://ws-feed.exchange.coinbase.com"
 )
 
@@ -26,15 +26,14 @@ func main() {
 	quit := make(chan struct{})
 	msgs := GetEventMessages()
 	go func() {
-		for {
-			bp, err := influx.NewBatchPoints(influx.BatchPointsConfig{
-				Database:  database,
-				Precision: "s",
-			})
-
+		bp, err := influx.NewBatchPoints(influx.BatchPointsConfig{
+			Database:  database,
+			Precision: "s",
+		})
 			lastTradePrice := 0.0
+		for {
 			select {
-			case m := <- msgs:
+			case m := <-msgs:
 				if m.Type != "match" {
 					continue
 				}
@@ -44,6 +43,7 @@ func main() {
 				fields := map[string]interface{}{
 					"value": m.Price,
 				}
+				fmt.Println(m.Price)
 				lastTradePrice = m.Price
 				pt, err := influx.NewPoint("trades", tags, fields, time.Now())
 				bp.AddPoint(pt)
@@ -66,7 +66,7 @@ func main() {
 				}
 				for _, a := range accounts {
 					tags := map[string]string{
-						"id": a.Id,
+						"id":       a.Id,
 						"currency": a.Currency,
 					}
 					fields := map[string]interface{}{
@@ -102,7 +102,6 @@ func main() {
 	close(quit)
 }
 
-
 func GetEventMessages() <-chan *exchange.Message {
 	var wsDialer ws.Dialer
 	wsConn, _, err := wsDialer.Dial(coinbaseWebsocketHost, nil)
@@ -132,4 +131,3 @@ func GetEventMessages() <-chan *exchange.Message {
 	}()
 	return socketMessages
 }
-
