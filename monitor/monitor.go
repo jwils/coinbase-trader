@@ -35,14 +35,17 @@ func main() {
 			lastTradePrice := 0.0
 			select {
 			case m := <- msgs:
+				if m.Type != "match" {
+					continue
+				}
 				tags := map[string]string{
-					"type": m.Type,
+					"side": m.Side,
 				}
 				fields := map[string]interface{}{
 					"value": m.Price,
 				}
 				lastTradePrice = m.Price
-				pt, err := influx.NewPoint("trades", tags, fields, m.Time.Time())
+				pt, err := influx.NewPoint("trades", tags, fields, time.Now())
 				bp.AddPoint(pt)
 				if err != nil {
 					panic(err)
