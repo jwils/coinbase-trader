@@ -22,9 +22,15 @@ func main() {
 		panic(err)
 	}
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(15 * time.Second)
 	quit := make(chan struct{})
 	msgs := GetEventMessages()
+	secret := os.Getenv("COINBASE_SECRET")
+	key := os.Getenv("COINBASE_KEY")
+	passphrase := os.Getenv("COINBASE_PASSPHRASE")
+
+	client := exchange.NewClient(secret, key, passphrase)
+	
 	go func() {
 		bp, err := influx.NewBatchPoints(influx.BatchPointsConfig{
 			Database:  database,
@@ -51,18 +57,13 @@ func main() {
 					panic(err)
 				}
 			case <-ticker.C:
-				secret := os.Getenv("COINBASE_SECRET")
-				key := os.Getenv("COINBASE_KEY")
-				passphrase := os.Getenv("COINBASE_PASSPHRASE")
-
-				client := exchange.NewClient(secret, key, passphrase)
-
 				if err != nil {
 					panic(err)
 				}
 				accounts, err := client.GetAccounts()
 				if err != nil {
-					panic(err.Error())
+					fmt.Errorf("Failed to get accounts %s", err)
+					continue
 				}
 				total := 0.0
 				for _, a := range accounts {
